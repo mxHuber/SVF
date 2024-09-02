@@ -27,25 +27,23 @@
  *      Author: Yulei Sui
  */
 
-#include "Util/Options.h"
 #include "Util/SVFUtil.h"
 #include "MemoryModel/PointsTo.h"
+#include "Util/Options.h"
 
-#include <sys/resource.h>		/// increase stack size
+#include <sys/resource.h> /// increase stack size
 
 using namespace SVF;
 
 /// Color for output format
-#define KNRM  "\x1B[1;0m"
-#define KRED  "\x1B[1;31m"
-#define KGRN  "\x1B[1;32m"
-#define KYEL  "\x1B[1;33m"
-#define KBLU  "\x1B[1;34m"
-#define KPUR  "\x1B[1;35m"
-#define KCYA  "\x1B[1;36m"
-#define KWHT  "\x1B[1;37m"
-
-
+#define KNRM "\x1B[1;0m"
+#define KRED "\x1B[1;31m"
+#define KGRN "\x1B[1;32m"
+#define KYEL "\x1B[1;33m"
+#define KBLU "\x1B[1;34m"
+#define KPUR "\x1B[1;35m"
+#define KCYA "\x1B[1;36m"
+#define KWHT "\x1B[1;37m"
 
 /*!
  * print successful message by converting a string into green string output
@@ -85,7 +83,7 @@ std::string SVFUtil::bugMsg1(const std::string& msg)
 
 std::string SVFUtil::bugMsg2(const std::string& msg)
 {
-    return KPUR + msg + KNRM;
+    return msg;
 }
 
 std::string SVFUtil::bugMsg3(const std::string& msg)
@@ -123,7 +121,7 @@ void SVFUtil::dumpPointsToList(const PointsToList& ptl)
 {
     outs() << "{";
     for (PointsToList::const_iterator ii = ptl.begin(), ie = ptl.end();
-            ii != ie; ii++)
+         ii != ie; ii++)
     {
         auto bs = *ii;
         dumpSet(bs);
@@ -144,16 +142,15 @@ void SVFUtil::dumpAliasSet(unsigned node, NodeBS bs)
 /*!
  * Dump bit vector set
  */
-void SVFUtil::dumpSet(NodeBS bs, OutStream & O)
+void SVFUtil::dumpSet(NodeBS bs, OutStream& O)
 {
-    for (NodeBS::iterator ii = bs.begin(), ie = bs.end();
-            ii != ie; ii++)
+    for (NodeBS::iterator ii = bs.begin(), ie = bs.end(); ii != ie; ii++)
     {
         O << " " << *ii << " ";
     }
 }
 
-void SVFUtil::dumpSet(PointsTo pt, OutStream &o)
+void SVFUtil::dumpSet(PointsTo pt, OutStream& o)
 {
     for (NodeID n : pt)
     {
@@ -164,7 +161,7 @@ void SVFUtil::dumpSet(PointsTo pt, OutStream &o)
 /*!
  * Print memory usage
  */
-void SVFUtil::reportMemoryUsageKB(const std::string& infor, OutStream & O)
+void SVFUtil::reportMemoryUsageKB(const std::string& infor, OutStream& O)
 {
     u32_t vmrss, vmsize;
     if (getMemoryUsageKB(&vmrss, &vmsize))
@@ -179,12 +176,12 @@ bool SVFUtil::getMemoryUsageKB(u32_t* vmrss_kb, u32_t* vmsize_kb)
     /* Get the current process' status file from the proc filesystem */
     char buffer[8192];
     FILE* procfile = fopen("/proc/self/status", "r");
-    if(procfile)
+    if (procfile)
     {
         u32_t result = fread(buffer, sizeof(char), 8192, procfile);
         if (result == 0)
         {
-            fputs ("Reading error\n",stderr);
+            fputs("Reading error\n", stderr);
         }
     }
     else
@@ -226,7 +223,7 @@ bool SVFUtil::getMemoryUsageKB(u32_t* vmrss_kb, u32_t* vmsize_kb)
  */
 void SVFUtil::increaseStackSize()
 {
-    const rlim_t kStackSize = 256L * 1024L * 1024L;   // min stack size = 256 Mb
+    const rlim_t kStackSize = 256L * 1024L * 1024L; // min stack size = 256 Mb
     struct rlimit rl;
     int result = getrlimit(RLIMIT_STACK, &rl);
     if (result == 0)
@@ -243,7 +240,7 @@ void SVFUtil::increaseStackSize()
 
 /*!
  * Return true if it is an llvm intrinsic instruction
-*/
+ */
 bool SVFUtil::isIntrinsicInst(const SVFInstruction* inst)
 {
     if (const SVFCallInst* call = SVFUtil::dyn_cast<SVFCallInst>(inst))
@@ -288,7 +285,8 @@ void SVFUtil::timeLimitReached(int)
 
 bool SVFUtil::startAnalysisLimitTimer(unsigned timeLimit)
 {
-    if (timeLimit == 0) return false;
+    if (timeLimit == 0)
+        return false;
 
     // If an alarm is already set, don't set another. That means this analysis
     // is part of another which has a time limit.
@@ -309,14 +307,16 @@ bool SVFUtil::startAnalysisLimitTimer(unsigned timeLimit)
 /// timer or not (return value of startLimitTimer).
 void SVFUtil::stopAnalysisLimitTimer(bool limitTimerSet)
 {
-    if (limitTimerSet) alarm(0);
+    if (limitTimerSet)
+        alarm(0);
 }
 
 /// Match arguments for callsite at caller and callee
 /// if the arg size does not match then we do not need to connect this parameter
-/// unless the callee is a variadic function (the first parameter of variadic function is its parameter number)
-/// e.g., void variadicFoo(int num, ...); variadicFoo(5, 1,2,3,4,5)
-/// for variadic function, callsite arg size must be greater than or equal to callee arg size
+/// unless the callee is a variadic function (the first parameter of variadic
+/// function is its parameter number) e.g., void variadicFoo(int num, ...);
+/// variadicFoo(5, 1,2,3,4,5) for variadic function, callsite arg size must be
+/// greater than or equal to callee arg size
 bool SVFUtil::matchArgs(const SVFInstruction* cs, const SVFFunction* callee)
 {
     if (callee->isVarArg() || ThreadAPI::getThreadAPI()->isTDFork(cs))

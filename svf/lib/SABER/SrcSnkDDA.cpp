@@ -27,8 +27,6 @@
  *      Author: Yulei Sui
  */
 
-
-#include "Util/Options.h"
 #include "SABER/SrcSnkDDA.h"
 #include "Graphs/SVFGStat.h"
 #include "Util/Options.h"
@@ -44,13 +42,13 @@ void SrcSnkDDA::initialize(SVFModule* module)
 
     AndersenWaveDiff* ander = AndersenWaveDiff::createAndersenWaveDiff(pag);
     memSSA.setSaberCondAllocator(getSaberCondAllocator());
-    if(Options::SABERFULLSVFG())
-        svfg =  memSSA.buildFullSVFG(ander);
+    if (Options::SABERFULLSVFG())
+        svfg = memSSA.buildFullSVFG(ander);
     else
-        svfg =  memSSA.buildPTROnlySVFG(ander);
+        svfg = memSSA.buildPTROnlySVFG(ander);
     setGraph(memSSA.getSVFG());
     ptaCallGraph = ander->getPTACallGraph();
-    //AndersenWaveDiff::releaseAndersenWaveDiff();
+    // AndersenWaveDiff::releaseAndersenWaveDiff();
     /// allocate control-flow graph branch conditions
     getSaberCondAllocator()->allocate(getPAG()->getModule());
 
@@ -60,56 +58,65 @@ void SrcSnkDDA::initialize(SVFModule* module)
 
 void SrcSnkDDA::analyze(SVFModule* module)
 {
-
     initialize(module);
 
     ContextCond::setMaxCxtLen(Options::CxtLimit());
 
     for (SVFGNodeSetIter iter = sourcesBegin(), eiter = sourcesEnd();
-            iter != eiter; ++iter)
+         iter != eiter; ++iter)
     {
         setCurSlice(*iter);
 
-        DBOUT(DGENERAL, outs() << "Analysing slice:" << (*iter)->getId() << ")\n");
+        DBOUT(DGENERAL, outs()
+                            << "Analysing slice:" << (*iter)->getId() << ")\n");
         ContextCond cxt;
-        DPIm item((*iter)->getId(),cxt);
+        DPIm item((*iter)->getId(), cxt);
         forwardTraverse(item);
 
         /// do not consider there is bug when reaching a global SVFGNode
-        /// if we touch a global, then we assume the client uses this memory until the program exits.
+        /// if we touch a global, then we assume the client uses this memory
+        /// until the program exits.
         if (getCurSlice()->isReachGlobal())
         {
-            DBOUT(DSaber, outs() << "Forward analysis reaches globals for slice:" << (*iter)->getId() << ")\n");
+            DBOUT(DSaber, outs()
+                              << "Forward analysis reaches globals for slice:"
+                              << (*iter)->getId() << ")\n");
         }
         else
         {
-            DBOUT(DSaber, outs() << "Forward process for slice:" << (*iter)->getId() << " (size = " << getCurSlice()->getForwardSliceSize() << ")\n");
+            DBOUT(DSaber,
+                  outs() << "Forward process for slice:" << (*iter)->getId()
+                         << " (size = " << getCurSlice()->getForwardSliceSize()
+                         << ")\n");
 
-            for (SVFGNodeSetIter sit = getCurSlice()->sinksBegin(), esit =
-                        getCurSlice()->sinksEnd(); sit != esit; ++sit)
+            for (SVFGNodeSetIter sit = getCurSlice()->sinksBegin(),
+                                 esit = getCurSlice()->sinksEnd();
+                 sit != esit; ++sit)
             {
                 ContextCond cxt;
-                DPIm item((*sit)->getId(),cxt);
+                DPIm item((*sit)->getId(), cxt);
                 backwardTraverse(item);
             }
 
-            DBOUT(DSaber, outs() << "Backward process for slice:" << (*iter)->getId() << " (size = " << getCurSlice()->getBackwardSliceSize() << ")\n");
+            DBOUT(DSaber,
+                  outs() << "Backward process for slice:" << (*iter)->getId()
+                         << " (size = " << getCurSlice()->getBackwardSliceSize()
+                         << ")\n");
 
-            if(Options::DumpSlice())
+            if (Options::DumpSlice())
                 annotateSlice(_curSlice);
 
-            if(_curSlice->AllPathReachableSolve())
+            if (_curSlice->AllPathReachableSolve())
                 _curSlice->setAllReachable();
 
-            DBOUT(DSaber, outs() << "Guard computation for slice:" << (*iter)->getId() << ")\n");
+            DBOUT(DSaber, outs() << "Guard computation for slice:"
+                                 << (*iter)->getId() << ")\n");
         }
 
         reportBug(getCurSlice());
     }
     finalize();
-
 }
-
 
 /*!
  * determine whether a SVFGNode n is in a allocation wrapper function,
@@ -126,50 +133,55 @@ bool SrcSnkDDA::isInAWrapper(const SVFGNode* src, CallSiteSet& csIdSet)
     u32_t step = 0;
     while (!worklist.empty())
     {
-        const SVFGNode* node  = worklist.pop();
+        const SVFGNode* node = worklist.pop();
 
-        if(visited.test(node->getId())==0)
+        if (visited.test(node->getId()) == 0)
             visited.set(node->getId());
         else
             continue;
-        // reaching maximum steps when traversing on SVFG to identify a memory allocation wrapper
+        // reaching maximum steps when traversing on SVFG to identify a memory
+        // allocation wrapper
         if (step++ > Options::MaxStepInWrapper())
             return false;
 
-        for (SVFGNode::const_iterator it = node->OutEdgeBegin(), eit =
-                    node->OutEdgeEnd(); it != eit; ++it)
+        for (SVFGNode::const_iterator it = node->OutEdgeBegin(),
+                                      eit = node->OutEdgeEnd();
+             it != eit; ++it)
         {
             const SVFGEdge* edge = (*it);
-            //assert(edge->isDirectVFGEdge() && "the edge should always be direct VF");
-            // if this is a call edge
-            if(edge->isCallDirectVFGEdge())
+            // assert(edge->isDirectVFGEdge() && "the edge should always be
+            // direct VF");
+            //  if this is a call edge
+            if (edge->isCallDirectVFGEdge())
             {
                 return false;
             }
             // if this is a return edge
-            else if(edge->isRetDirectVFGEdge())
+            else if (edge->isRetDirectVFGEdge())
             {
                 reachFunExit = true;
-                csIdSet.insert(getSVFG()->getCallSite(SVFUtil::cast<RetDirSVFGEdge>(edge)->getCallSiteId()));
+                csIdSet.insert(getSVFG()->getCallSite(
+                    SVFUtil::cast<RetDirSVFGEdge>(edge)->getCallSiteId()));
             }
             // (1) an intra direct edge, we will keep tracking
-            // (2) an intra indirect edge, we only track if the succ SVFGNode is a load, which means we only track one level store-load pair .
-            // (3) do not track for all other interprocedural edges.
+            // (2) an intra indirect edge, we only track if the succ SVFGNode is
+            // a load, which means we only track one level store-load pair . (3)
+            // do not track for all other interprocedural edges.
             else
             {
                 const SVFGNode* succ = edge->getDstNode();
-                if(SVFUtil::isa<IntraDirSVFGEdge>(edge))
+                if (SVFUtil::isa<IntraDirSVFGEdge>(edge))
                 {
                     if (SVFUtil::isa<CopySVFGNode, GepSVFGNode, PHISVFGNode,
-                            FormalRetSVFGNode, ActualRetSVFGNode,
-                            StoreSVFGNode>(succ))
+                                     FormalRetSVFGNode, ActualRetSVFGNode,
+                                     StoreSVFGNode>(succ))
                     {
                         worklist.push(succ);
                     }
                 }
-                else if(SVFUtil::isa<IntraIndSVFGEdge>(edge))
+                else if (SVFUtil::isa<IntraIndSVFGEdge>(edge))
                 {
-                    if(SVFUtil::isa<LoadSVFGNode, IntraMSSAPHISVFGNode>(succ))
+                    if (SVFUtil::isa<LoadSVFGNode, IntraMSSAPHISVFGNode>(succ))
                     {
                         worklist.push(succ);
                     }
@@ -179,40 +191,42 @@ bool SrcSnkDDA::isInAWrapper(const SVFGNode* src, CallSiteSet& csIdSet)
             }
         }
     }
-    if(reachFunExit)
+    if (reachFunExit)
         return true;
     else
         return false;
 }
-
 
 /*!
  * Propagate information forward by matching context
  */
 void SrcSnkDDA::FWProcessOutgoingEdge(const DPIm& item, SVFGEdge* edge)
 {
-    DBOUT(DSaber,outs() << "\n##processing source: " << getCurSlice()->getSource()->getId() <<" forward propagate from (" << edge->getSrcID());
+    DBOUT(DSaber, outs() << "\n##processing source: "
+                         << getCurSlice()->getSource()->getId()
+                         << " forward propagate from (" << edge->getSrcID());
 
     // for indirect SVFGEdge, the propagation should follow the def-use chains
-    // points-to on the edge indicate whether the object of source node can be propagated
+    // points-to on the edge indicate whether the object of source node can be
+    // propagated
 
     const SVFGNode* dstNode = edge->getDstNode();
-    DPIm newItem(dstNode->getId(),item.getContexts());
+    DPIm newItem(dstNode->getId(), item.getContexts());
 
     /// handle globals here
-    if(isGlobalSVFGNode(dstNode) || getCurSlice()->isReachGlobal())
+    if (isGlobalSVFGNode(dstNode) || getCurSlice()->isReachGlobal())
     {
         getCurSlice()->setReachGlobal();
         return;
     }
-
 
     /// perform context sensitive reachability
     // push context for calling
     if (edge->isCallVFGEdge())
     {
         CallSiteID csId = 0;
-        if(const CallDirSVFGEdge* callEdge = SVFUtil::dyn_cast<CallDirSVFGEdge>(edge))
+        if (const CallDirSVFGEdge* callEdge =
+                SVFUtil::dyn_cast<CallDirSVFGEdge>(edge))
             csId = callEdge->getCallSiteId();
         else
             csId = SVFUtil::cast<CallIndSVFGEdge>(edge)->getCallSiteId();
@@ -224,7 +238,8 @@ void SrcSnkDDA::FWProcessOutgoingEdge(const DPIm& item, SVFGEdge* edge)
     else if (edge->isRetVFGEdge())
     {
         CallSiteID csId = 0;
-        if(const RetDirSVFGEdge* callEdge = SVFUtil::dyn_cast<RetDirSVFGEdge>(edge))
+        if (const RetDirSVFGEdge* callEdge =
+                SVFUtil::dyn_cast<RetDirSVFGEdge>(edge))
             csId = callEdge->getCallSiteId();
         else
             csId = SVFUtil::cast<RetIndSVFGEdge>(edge)->getCallSiteId();
@@ -238,27 +253,30 @@ void SrcSnkDDA::FWProcessOutgoingEdge(const DPIm& item, SVFGEdge* edge)
     }
 
     /// whether this dstNode has been visited or not
-    if(forwardVisited(dstNode,newItem))
+    if (forwardVisited(dstNode, newItem))
     {
-        DBOUT(DSaber,outs() << " node "<< dstNode->getId() <<" has been visited\n");
+        DBOUT(DSaber,
+              outs() << " node " << dstNode->getId() << " has been visited\n");
         return;
     }
     else
         addForwardVisited(dstNode, newItem);
 
-    if(pushIntoWorklist(newItem))
-        DBOUT(DSaber,outs() << " --> " << edge->getDstID() << ", cxt size: " << newItem.getContexts().cxtSize() <<")\n");
-
+    if (pushIntoWorklist(newItem))
+        DBOUT(DSaber, outs() << " --> " << edge->getDstID() << ", cxt size: "
+                             << newItem.getContexts().cxtSize() << ")\n");
 }
 
 /*!
- * Propagate information backward without matching context, as forward analysis already did it
+ * Propagate information backward without matching context, as forward analysis
+ * already did it
  */
 void SrcSnkDDA::BWProcessIncomingEdge(const DPIm&, SVFGEdge* edge)
 {
-    DBOUT(DSaber,outs() << "backward propagate from (" << edge->getDstID() << " --> " << edge->getSrcID() << ")\n");
+    DBOUT(DSaber, outs() << "backward propagate from (" << edge->getDstID()
+                         << " --> " << edge->getSrcID() << ")\n");
     const SVFGNode* srcNode = edge->getSrcNode();
-    if(backwardVisited(srcNode))
+    if (backwardVisited(srcNode))
         return;
     else
         addBackwardVisited(srcNode);
@@ -271,37 +289,43 @@ void SrcSnkDDA::BWProcessIncomingEdge(const DPIm&, SVFGEdge* edge)
 /// Set current slice
 void SrcSnkDDA::setCurSlice(const SVFGNode* src)
 {
-    if(_curSlice!=nullptr)
+    if (_curSlice != nullptr)
     {
         delete _curSlice;
         _curSlice = nullptr;
         clearVisitedMap();
     }
 
-    _curSlice = new ProgSlice(src,getSaberCondAllocator(), getSVFG());
+    _curSlice = new ProgSlice(src, getSaberCondAllocator(), getSVFG());
 }
 
 void SrcSnkDDA::annotateSlice(ProgSlice* slice)
 {
     getSVFG()->getStat()->addToSources(slice->getSource());
-    for(SVFGNodeSetIter it = slice->sinksBegin(), eit = slice->sinksEnd(); it!=eit; ++it )
+    for (SVFGNodeSetIter it = slice->sinksBegin(), eit = slice->sinksEnd();
+         it != eit; ++it)
         getSVFG()->getStat()->addToSinks(*it);
-    for(SVFGNodeSetIter it = slice->forwardSliceBegin(), eit = slice->forwardSliceEnd(); it!=eit; ++it )
+    for (SVFGNodeSetIter it = slice->forwardSliceBegin(),
+                         eit = slice->forwardSliceEnd();
+         it != eit; ++it)
         getSVFG()->getStat()->addToForwardSlice(*it);
-    for(SVFGNodeSetIter it = slice->backwardSliceBegin(), eit = slice->backwardSliceEnd(); it!=eit; ++it )
+    for (SVFGNodeSetIter it = slice->backwardSliceBegin(),
+                         eit = slice->backwardSliceEnd();
+         it != eit; ++it)
         getSVFG()->getStat()->addToBackwardSlice(*it);
 }
 
 void SrcSnkDDA::dumpSlices()
 {
 
-    if(Options::DumpSlice())
-        const_cast<SVFG*>(getSVFG())->dump("Slice",true);
+    if (Options::DumpSlice())
+        const_cast<SVFG*>(getSVFG())->dump("Slice", true);
 }
 
 void SrcSnkDDA::printZ3Stat()
 {
 
-    outs() << "Z3 Mem usage: " << getSaberCondAllocator()->getMemUsage() << "\n";
+    outs() << "Z3 Mem usage: " << getSaberCondAllocator()->getMemUsage()
+           << "\n";
     outs() << "Z3 Number: " << getSaberCondAllocator()->getCondNum() << "\n";
 }

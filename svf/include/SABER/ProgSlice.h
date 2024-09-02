@@ -27,21 +27,23 @@
  *      Author: Yulei Sui
  *
  *  The implementation is based on
- * (1) Yulei Sui, Ding Ye, and Jingling Xue. "Static Memory Leak Detection Using Full-Sparse Value-Flow Analysis".
- * 2012 International Symposium on Software Testing and Analysis (ISSTA'12)
+ * (1) Yulei Sui, Ding Ye, and Jingling Xue. "Static Memory Leak Detection Using
+ * Full-Sparse Value-Flow Analysis". 2012 International Symposium on Software
+ * Testing and Analysis (ISSTA'12)
  *
- * (2) Yulei Sui, Ding Ye, and Jingling Xue. "Detecting Memory Leaks Statically with Full-Sparse Value-Flow Analysis".
- * IEEE Transactions on Software Engineering (TSE'14)
+ * (2) Yulei Sui, Ding Ye, and Jingling Xue. "Detecting Memory Leaks Statically
+ * with Full-Sparse Value-Flow Analysis". IEEE Transactions on Software
+ * Engineering (TSE'14)
  */
 
 #ifndef PROGSLICE_H_
 #define PROGSLICE_H_
 
-#include "SABER/SaberCondAllocator.h"
-#include "Util/WorkList.h"
 #include "Graphs/SVFG.h"
+#include "SABER/SaberCondAllocator.h"
 #include "Util/DPItem.h"
 #include "Util/SVFBugReport.h"
+#include "Util/WorkList.h"
 
 namespace SVF
 {
@@ -53,18 +55,23 @@ public:
     typedef Set<const SVFGNode*> SVFGNodeSet;
     typedef SVFGNodeSet::const_iterator SVFGNodeSetIter;
     typedef SaberCondAllocator::Condition Condition;
-    typedef Map<const SVFGNode*, Condition> SVFGNodeToCondMap; 	///< map a SVFGNode to its condition during value-flow guard computation
+    typedef Map<const SVFGNode*, Condition>
+        SVFGNodeToCondMap; ///< map a SVFGNode to its condition during
+                           ///< value-flow guard computation
 
-    typedef FIFOWorkList<const SVFGNode*> VFWorkList;		    ///< worklist for value-flow guard computation
-    typedef FIFOWorkList<const SVFBasicBlock*> CFWorkList;	///< worklist for control-flow guard computation
+    typedef FIFOWorkList<const SVFGNode*>
+        VFWorkList; ///< worklist for value-flow guard computation
+    typedef FIFOWorkList<const SVFBasicBlock*>
+        CFWorkList; ///< worklist for control-flow guard computation
 
-    typedef SaberCondAllocator::SVFGNodeToSVFGNodeSetMap SVFGNodeToSVFGNodeSetMap;
-
+    typedef SaberCondAllocator::SVFGNodeToSVFGNodeSetMap
+        SVFGNodeToSVFGNodeSetMap;
 
     /// Constructor
-    ProgSlice(const SVFGNode* src, SaberCondAllocator* pa, const SVFG* graph):
-        root(src), partialReachable(false), fullReachable(false), reachGlob(false),
-        pathAllocator(pa), _curSVFGNode(nullptr), finalCond(pa->getFalseCond()), svfg(graph)
+    ProgSlice(const SVFGNode* src, SaberCondAllocator* pa, const SVFG* graph)
+        : root(src), partialReachable(false), fullReachable(false),
+          reachGlob(false), pathAllocator(pa), _curSVFGNode(nullptr),
+          finalCond(pa->getFalseCond()), svfg(graph)
     {
     }
 
@@ -94,11 +101,11 @@ public:
     }
     inline bool inForwardSlice(const SVFGNode* node)
     {
-        return forwardslice.find(node)!=forwardslice.end();
+        return forwardslice.find(node) != forwardslice.end();
     }
     inline bool inBackwardSlice(const SVFGNode* node)
     {
-        return backwardslice.find(node)!=backwardslice.end();
+        return backwardslice.find(node) != backwardslice.end();
     }
     inline SVFGNodeSetIter forwardSliceBegin() const
     {
@@ -169,7 +176,7 @@ public:
     /// Guarded reachability solve
     bool AllPathReachableSolve();
     bool isSatisfiableForAll();
-    bool isSatisfiableForPairs();
+    const VFGNode* isSatisfiableForPairs();
 
     /// Get callsite ID and get returnsiteID from SVFGEdge
     //@{
@@ -179,15 +186,15 @@ public:
 
     /// Condition operations
     //@{
-    inline Condition condAnd(const Condition &lhs, const Condition &rhs)
+    inline Condition condAnd(const Condition& lhs, const Condition& rhs)
     {
-        return pathAllocator->condAnd(lhs,rhs);
+        return pathAllocator->condAnd(lhs, rhs);
     }
-    inline Condition condOr(const Condition &lhs, const Condition &rhs)
+    inline Condition condOr(const Condition& lhs, const Condition& rhs)
     {
-        return pathAllocator->condOr(lhs,rhs);
+        return pathAllocator->condOr(lhs, rhs);
     }
-    inline Condition condNeg(const Condition &cond)
+    inline Condition condNeg(const Condition& cond)
     {
         return pathAllocator->condNeg(cond);
     }
@@ -206,7 +213,7 @@ public:
     /// Evaluate final condition
     std::string evalFinalCond() const;
     /// Add final condition to eventStack
-    void evalFinalCond2Event(GenericBug::EventStack &eventStack) const;
+    void evalFinalCond2Event(GenericBug::EventStack& eventStack) const;
     //@}
 
 protected:
@@ -229,17 +236,18 @@ protected:
     inline Condition getVFCond(const SVFGNode* node) const
     {
         SVFGNodeToCondMap::const_iterator it = svfgNodeToCondMap.find(node);
-        if(it==svfgNodeToCondMap.end())
+        if (it == svfgNodeToCondMap.end())
         {
             return getFalseCond();
         }
         return it->second;
     }
-    inline bool setVFCond(const SVFGNode* node, const Condition &cond)
+    inline bool setVFCond(const SVFGNode* node, const Condition& cond)
     {
         SVFGNodeToCondMap::iterator it = svfgNodeToCondMap.find(node);
         // until a fixed-point is reached (condition is not changed)
-        if(it!=svfgNodeToCondMap.end() && isEquivalentBranchCond(it->second, cond))
+        if (it != svfgNodeToCondMap.end() &&
+            isEquivalentBranchCond(it->second, cond))
             return false;
 
         svfgNodeToCondMap[node] = cond;
@@ -249,21 +257,27 @@ protected:
 
     /// Compute guards for value-flows
     //@{
-    inline Condition ComputeIntraVFGGuard(const SVFBasicBlock* src, const SVFBasicBlock* dst)
+    inline Condition ComputeIntraVFGGuard(const SVFBasicBlock* src,
+                                          const SVFBasicBlock* dst)
     {
-        return pathAllocator->ComputeIntraVFGGuard(src,dst);
+        return pathAllocator->ComputeIntraVFGGuard(src, dst);
     }
-    inline Condition ComputeInterCallVFGGuard(const SVFBasicBlock* src, const SVFBasicBlock* dst, const SVFBasicBlock* callBB)
+    inline Condition ComputeInterCallVFGGuard(const SVFBasicBlock* src,
+                                              const SVFBasicBlock* dst,
+                                              const SVFBasicBlock* callBB)
     {
-        return pathAllocator->ComputeInterCallVFGGuard(src,dst,callBB);
+        return pathAllocator->ComputeInterCallVFGGuard(src, dst, callBB);
     }
-    inline Condition ComputeInterRetVFGGuard(const SVFBasicBlock* src, const SVFBasicBlock* dst, const SVFBasicBlock* retBB)
+    inline Condition ComputeInterRetVFGGuard(const SVFBasicBlock* src,
+                                             const SVFBasicBlock* dst,
+                                             const SVFBasicBlock* retBB)
     {
-        return pathAllocator->ComputeInterRetVFGGuard(src,dst,retBB);
+        return pathAllocator->ComputeInterRetVFGGuard(src, dst, retBB);
     }
     //@}
 
-    inline bool isEquivalentBranchCond(const Condition &lhs, const Condition &rhs) const
+    inline bool isEquivalentBranchCond(const Condition& lhs,
+                                       const Condition& rhs) const
     {
         return pathAllocator->isEquivalentBranchCond(lhs, rhs);
     };
@@ -274,7 +288,7 @@ protected:
     inline const SVFBasicBlock* getSVFGNodeBB(const SVFGNode* node) const
     {
         const ICFGNode* icfgNode = node->getICFGNode();
-        if(SVFUtil::isa<NullPtrSVFGNode>(node) == false)
+        if (SVFUtil::isa<NullPtrSVFGNode>(node) == false)
         {
             return icfgNode->getBB();
         }
@@ -294,13 +308,14 @@ protected:
     }
     //@}
     /// Set final condition after all path reachability analysis
-    inline void setFinalCond(const Condition &cond)
+    inline void setFinalCond(const Condition& cond)
     {
         finalCond = cond;
     }
 
-    /// Compute invalid branch condition stemming from removed strong update value-flow edges
-    Condition computeInvalidCondFromRemovedSUVFEdge(const SVFGNode * cur);
+    /// Compute invalid branch condition stemming from removed strong update
+    /// value-flow edges
+    Condition computeInvalidCondFromRemovedSUVFEdge(const SVFGNode* cur);
 
     const SVFGNodeToSVFGNodeSetMap& getRemovedSUVFEdges() const
     {
@@ -308,18 +323,20 @@ protected:
     }
 
 private:
-    SVFGNodeSet forwardslice;				///<  the forward slice
-    SVFGNodeSet backwardslice;				///<  the backward slice
-    SVFGNodeSet sinks;						///<  a set of sink nodes
-    const SVFGNode* root;					///<  root node on the slice
-    SVFGNodeToCondMap svfgNodeToCondMap;	///<  map a SVFGNode to its path condition starting from root
-    bool partialReachable;					///<  reachable from some paths
-    bool fullReachable;						///<  reachable from all paths
-    bool reachGlob;							///<  Whether slice reach a global
-    SaberCondAllocator* pathAllocator;		///<  path condition allocator
-    const SVFGNode* _curSVFGNode;			///<  current svfg node during guard computation
-    Condition finalCond;					///<  final condition
-    const SVFG* svfg;						///<  SVFG
+    SVFGNodeSet forwardslice;            ///<  the forward slice
+    SVFGNodeSet backwardslice;           ///<  the backward slice
+    SVFGNodeSet sinks;                   ///<  a set of sink nodes
+    const SVFGNode* root;                ///<  root node on the slice
+    SVFGNodeToCondMap svfgNodeToCondMap; ///<  map a SVFGNode to its path
+                                         ///<  condition starting from root
+    bool partialReachable;               ///<  reachable from some paths
+    bool fullReachable;                  ///<  reachable from all paths
+    bool reachGlob;                      ///<  Whether slice reach a global
+    SaberCondAllocator* pathAllocator;   ///<  path condition allocator
+    const SVFGNode*
+        _curSVFGNode;    ///<  current svfg node during guard computation
+    Condition finalCond; ///<  final condition
+    const SVFG* svfg;    ///<  SVFG
 };
 
 } // End namespace SVF

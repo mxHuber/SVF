@@ -28,8 +28,11 @@
  */
 
 #include "SABER/DoubleFreeChecker.h"
-#include "Util/SVFUtil.h"
+#include "Graphs/ICFGNode.h"
+#include "Util/Casting.h"
 #include "Util/Options.h"
+#include "Util/SVFBugReport.h"
+#include "Util/SVFUtil.h"
 
 using namespace SVF;
 using namespace SVFUtil;
@@ -37,55 +40,64 @@ using namespace SVFUtil;
 void DoubleFreeChecker::reportBug(ProgSlice* slice)
 {
 
-    if(slice->isSatisfiableForPairs() == false)
+    if (const VFGNode* node = slice->isSatisfiableForPairs())
     {
         GenericBug::EventStack eventStack;
         slice->evalFinalCond2Event(eventStack);
+
+        if (const auto* callNode = dyn_cast<CallICFGNode>(node->getICFGNode()))
+        {
+            eventStack.push_back(
+                SVFBugEvent(SVFBugEvent::CallSite, callNode->getCallSite()));
+        }
+
         eventStack.push_back(
-            SVFBugEvent(SVFBugEvent::SourceInst, getSrcCSID(slice->getSource())->getCallSite()));
+            SVFBugEvent(SVFBugEvent::SourceInst,
+                        getSrcCSID(slice->getSource())->getCallSite()));
         report.addSaberBug(GenericBug::DOUBLEFREE, eventStack);
     }
-    if(Options::ValidateTests())
+    if (Options::ValidateTests())
         testsValidation(slice);
 }
 
-
-
-void DoubleFreeChecker::testsValidation(ProgSlice *slice)
+void DoubleFreeChecker::testsValidation(ProgSlice* slice)
 {
     const SVFGNode* source = slice->getSource();
     const CallICFGNode* cs = getSrcCSID(source);
     const SVFFunction* fun = getCallee(cs->getCallSite());
-    if(fun==nullptr)
+    if (fun == nullptr)
         return;
-    validateSuccessTests(slice,fun);
-    validateExpectedFailureTests(slice,fun);
+    validateSuccessTests(slice, fun);
+    validateExpectedFailureTests(slice, fun);
 }
 
-void DoubleFreeChecker::validateSuccessTests(ProgSlice *slice, const SVFFunction *fun)
+void DoubleFreeChecker::validateSuccessTests(ProgSlice* slice,
+                                             const SVFFunction* fun)
 {
     const SVFGNode* source = slice->getSource();
     const CallICFGNode* cs = getSrcCSID(source);
 
     bool success = false;
 
-    if(fun->getName() == "SAFEMALLOC")
+    if (fun->getName() == "SAFEMALLOC")
     {
-        if(slice->isSatisfiableForPairs() == true)
+        if (slice->isSatisfiableForPairs() != nullptr)
             success = true;
     }
-    else if(fun->getName() == "DOUBLEFREEMALLOC")
+    else if (fun->getName() == "DOUBLEFREEMALLOC")
     {
-        if(slice->isSatisfiableForPairs() == false)
+        if (slice->isSatisfiableForPairs() == nullptr)
             success = true;
     }
-    else if(fun->getName() == "DOUBLEFREEMALLOCFN" || fun->getName() == "SAFEMALLOCFP")
+    else if (fun->getName() == "DOUBLEFREEMALLOCFN" ||
+             fun->getName() == "SAFEMALLOCFP")
     {
         return;
     }
     else
     {
-        writeWrnMsg("\t can not validate, check function not found, please put it at the right place!!");
+        writeWrnMsg("\t can not validate, check function not found, please put "
+                    "it at the right place!!");
         return;
     }
 
@@ -93,45 +105,52 @@ void DoubleFreeChecker::validateSuccessTests(ProgSlice *slice, const SVFFunction
 
     if (success)
     {
-        outs() << sucMsg("\t SUCCESS :") << funName << " check <src id:" << source->getId()
-               << ", cs id:" << getSrcCSID(source)->getCallSite()->toString() << "> at ("
-               << cs->getCallSite()->getSourceLoc() << ")\n";
+        outs() << sucMsg("\t SUCCESS :") << funName
+               << " check <src id:" << source->getId()
+               << ", cs id:" << getSrcCSID(source)->getCallSite()->toString()
+               << "> at (" << cs->getCallSite()->getSourceLoc() << ")\n";
         outs() << "\t\t double free path: \n" << slice->evalFinalCond() << "\n";
     }
     else
     {
-        SVFUtil::errs() << errMsg("\t FAILURE :") << funName << " check <src id:" << source->getId()
-                        << ", cs id:" <<getSrcCSID(source)->getCallSite()->toString() << "> at ("
-                        << cs->getCallSite()->getSourceLoc() << ")\n";
-        SVFUtil::errs() << "\t\t double free path: \n" << slice->evalFinalCond() << "\n";
+        SVFUtil::errs() << errMsg("\t FAILURE :") << funName
+                        << " check <src id:" << source->getId() << ", cs id:"
+                        << getSrcCSID(source)->getCallSite()->toString()
+                        << "> at (" << cs->getCallSite()->getSourceLoc()
+                        << ")\n";
+        SVFUtil::errs() << "\t\t double free path: \n"
+                        << slice->evalFinalCond() << "\n";
         assert(false && "test case failed!");
     }
 }
 
-void DoubleFreeChecker::validateExpectedFailureTests(ProgSlice *slice, const SVFFunction *fun)
+void DoubleFreeChecker::validateExpectedFailureTests(ProgSlice* slice,
+                                                     const SVFFunction* fun)
 {
     const SVFGNode* source = slice->getSource();
     const CallICFGNode* cs = getSrcCSID(source);
 
     bool expectedFailure = false;
     /// output safe but should be double free
-    if(fun->getName() == "DOUBLEFREEMALLOCFN")
+    if (fun->getName() == "DOUBLEFREEMALLOCFN")
     {
-        if(slice->isSatisfiableForPairs() == true)
+        if (slice->isSatisfiableForPairs() != nullptr)
             expectedFailure = true;
     } /// output double free but should be safe
-    else if(fun->getName() == "SAFEMALLOCFP")
+    else if (fun->getName() == "SAFEMALLOCFP")
     {
-        if(slice->isSatisfiableForPairs() == false)
+        if (slice->isSatisfiableForPairs() == nullptr)
             expectedFailure = true;
     }
-    else if(fun->getName() == "SAFEMALLOC" || fun->getName() == "DOUBLEFREEMALLOC")
+    else if (fun->getName() == "SAFEMALLOC" ||
+             fun->getName() == "DOUBLEFREEMALLOC")
     {
         return;
     }
     else
     {
-        writeWrnMsg("\t can not validate, check function not found, please put it at the right place!!");
+        writeWrnMsg("\t can not validate, check function not found, please put "
+                    "it at the right place!!");
         return;
     }
 
@@ -139,18 +158,21 @@ void DoubleFreeChecker::validateExpectedFailureTests(ProgSlice *slice, const SVF
 
     if (expectedFailure)
     {
-        outs() << sucMsg("\t EXPECTED-FAILURE :") << funName << " check <src id:" << source->getId()
-               << ", cs id:" << getSrcCSID(source)->getCallSite()->toString() << "> at ("
-               << cs->getCallSite()->getSourceLoc() << ")\n";
+        outs() << sucMsg("\t EXPECTED-FAILURE :") << funName
+               << " check <src id:" << source->getId()
+               << ", cs id:" << getSrcCSID(source)->getCallSite()->toString()
+               << "> at (" << cs->getCallSite()->getSourceLoc() << ")\n";
         outs() << "\t\t double free path: \n" << slice->evalFinalCond() << "\n";
     }
     else
     {
         SVFUtil::errs() << errMsg("\t UNEXPECTED FAILURE :") << funName
-                        << " check <src id:" << source->getId()
-                        << ", cs id:" << getSrcCSID(source)->getCallSite()->toString() << "> at ("
-                        << cs->getCallSite()->getSourceLoc() << ")\n";
-        SVFUtil::errs() << "\t\t double free path: \n" << slice->evalFinalCond() << "\n";
+                        << " check <src id:" << source->getId() << ", cs id:"
+                        << getSrcCSID(source)->getCallSite()->toString()
+                        << "> at (" << cs->getCallSite()->getSourceLoc()
+                        << ")\n";
+        SVFUtil::errs() << "\t\t double free path: \n"
+                        << slice->evalFinalCond() << "\n";
         assert(false && "test case failed!");
     }
 }
